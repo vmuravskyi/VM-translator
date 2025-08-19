@@ -7,18 +7,60 @@ import java.io.IOException;
 public class CodeWriter {
 
     private final BufferedWriter out;
+    private Parser parser = null;
     private String fileName = "Static";
+    private String currentVmCommand;
+    private boolean withLoggingVmCommand = false;
     private int labelCounter = 0;
 
     public CodeWriter(String outputFile) throws IOException {
         out = new BufferedWriter(new FileWriter(outputFile));
     }
 
-    public void setFileName(String base) {
-        this.fileName = base;
+    public CodeWriter setParser(Parser parser) {
+        this.parser = parser;
+        return this;
     }
 
-    public void writeArithmetic(String cmd) throws IOException {
+    public CodeWriter withFileName(String base) {
+        this.fileName = base;
+        return this;
+    }
+
+    public void setCurrentVmCommand(String vmCommand) {
+        this.currentVmCommand = vmCommand;
+    }
+
+    /**
+     * Logs VM command as comment before translating into assembly.
+     *
+     * @param vmCommandLogger log VM command
+     * @return this
+     */
+    public CodeWriter withLoggingVmCommand(boolean vmCommandLogger) {
+        this.withLoggingVmCommand = vmCommandLogger;
+        return this;
+    }
+
+    private void logCurrentVmCommandAsComment() throws IOException {
+        writeln("// " + currentVmCommand);
+    }
+
+    public void writeCommand() throws IOException {
+        CommandType type = parser.commandType();
+        switch (type) {
+            case C_ARITHMETIC -> this.writeArithmetic();
+            case C_PUSH, C_POP -> this.writePushPop();
+            default -> throw new UnsupportedOperationException("Unknown command: " + type);
+        }
+    }
+
+    public void writeArithmetic() throws IOException {
+        if (withLoggingVmCommand) {
+            logCurrentVmCommandAsComment();
+        }
+
+        String cmd = parser.arg1();
         switch (cmd) {
             case "add" -> writeBinary("M=D+M");
             case "sub" -> writeBinary("M=M-D");
@@ -33,7 +75,14 @@ public class CodeWriter {
         }
     }
 
-    public void writePushPop(CommandType type, String segment, int index) throws IOException {
+    public void writePushPop() throws IOException {
+        if (withLoggingVmCommand) {
+            logCurrentVmCommandAsComment();
+        }
+
+        CommandType type = parser.commandType();
+        String segment = parser.arg1();
+        int index = parser.arg2();
         if (type == CommandType.C_PUSH) {
             switch (segment) {
                 case "constant" -> {

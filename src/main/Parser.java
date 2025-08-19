@@ -24,6 +24,10 @@ public class Parser {
         }
     }
 
+    public String getCurrentCommand() {
+        return current;
+    }
+
     public boolean hasMoreCommands() {
         return index + 1 < lines.size();
     }

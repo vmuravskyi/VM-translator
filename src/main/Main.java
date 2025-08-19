@@ -2,38 +2,50 @@ package main;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class Main {
 
+    private static final Logger LOGGER = Logger.getLogger(Main.class.getName());
+
     public static void main(String[] args) {
         if (args.length != 1 || !args[0].endsWith(".vm")) {
-            System.out.println("Usage: java -cp out main.Main <File.vm>");
+            LOGGER.log(Level.INFO, "Usage: java -cp out main.Main <File.vm>");
             return;
         }
 
         String inputPath = args[0];
         String outputPath = inputPath.replace(".vm", ".asm");
 
+        Parser parser = null;
+        CodeWriter writer = null;
         try {
-            Parser parser = new Parser(inputPath);
-            CodeWriter writer = new CodeWriter(outputPath);
-            writer.setFileName(Path.of(inputPath).getFileName().toString().replace(".vm", ""));
+            parser = new Parser(inputPath);
+            writer = new CodeWriter(outputPath)
+                .setParser(parser)
+                .withLoggingVmCommand(true)
+                .withFileName(Path.of(inputPath).getFileName().toString().replace(".vm", ""));
 
             while (parser.hasMoreCommands()) {
                 parser.advance();
-                CommandType type = parser.commandType();
+                writer.setCurrentVmCommand(parser.getCurrentCommand());
+                writer.writeCommand();
+            }
 
-                switch (type) {
-                    case C_ARITHMETIC -> writer.writeArithmetic(parser.arg1());
-                    case C_PUSH, C_POP -> writer.writePushPop(type, parser.arg1(), parser.arg2());
-                    default -> { /* ignore */ }
+            LOGGER.log(Level.INFO, "Wrote: {0}", outputPath);
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE, "I/O error while writing {0}: {1}", new Object[]{outputPath, e.getMessage()});
+            LOGGER.log(Level.FINEST, "Stacktrace", e);
+        } finally {
+            if (writer != null) {
+                try {
+                    writer.close();
+                } catch (IOException e) {
+                    LOGGER.log(Level.SEVERE, "Failed to close writer for {0}: {1}", new Object[]{outputPath, e.getMessage()});
                 }
             }
 
-            writer.close();
-            System.out.println("Wrote: " + outputPath);
-        } catch (IOException e) {
-            System.err.println("I/O error: " + e.getMessage());
         }
     }
 
